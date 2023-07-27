@@ -43,22 +43,25 @@ public class ShikimoriService {
 
 	public List<AnimeRate> getUserAnimeRate() {
 
-		List<AnimeRate> result = new ArrayList<>();
+		ArrayList<AnimeRate> result = new ArrayList<>();
 
-		int paramValue = 1;
-
+		int page = 1;
 		String urlFull = new StringBuilder(url).append(urlUsers).append(getUserId()).append("/anime_rates/")
 				.append("?").append("limit").append("=").append(5000 )
-				.append("&").append("page").append("=").append(paramValue)
 				.toString();
 
-		ResponseEntity<AnimeRate[]> response = restTemplate.exchange(urlFull, HttpMethod.GET, entity(),
-				AnimeRate[].class);
-
-		while (response != null) {
-			response = restTemplate.exchange(urlFull, HttpMethod.GET, entity(), AnimeRate[].class);
-			result.addAll(Arrays.asList(response.getBody()));
-			paramValue++;
+		AnimeRate[] animeRate = (AnimeRate[]) getPage(urlFull, page);
+		
+		while (animeRate.length > 0 && page <= 100000) {
+			if (page == 1) {
+				if (result.size() > animeRate.length - 1) {
+					result = new ArrayList<>();
+				}
+			} else {
+				animeRate = (AnimeRate[]) getPage(urlFull, page);
+			}
+			result.addAll(Arrays.asList(animeRate));
+			page++;
 			try {
 				Thread.sleep(1000);
 			} catch (InterruptedException e) {
@@ -91,38 +94,37 @@ public class ShikimoriService {
 	public ArrayList<History> getAnimeHistory() {
 		ArrayList<History> result = new ArrayList<>();
 
-		int paramValue = 1;
+		int page = 1;
+		String urlFull = new StringBuilder(url).append(urlUsers).append(getUserId()).append("/history")
+				.append('?').append("target_type").append('=').append("Anime")
+				.append('&').append("limit").append('=').append(100)
+				.toString();
 
-		History[] history = getHistoryPage(paramValue).getBody();
-		while (history.length > 0) {
-			if (paramValue == 1) {
+		History[] history = (History[]) getPage(urlFull, page);
+		while (history.length > 0 && page <= 100000) {
+			if (page == 1) {
 				if (result.size() > history.length - 1) {
 					result = new ArrayList<>();
 				}
 			} else {
-				history = getHistoryPage(paramValue).getBody();
+				history = (History[])  getPage(urlFull, page);
 			}
 			result.addAll(Arrays.asList(history));
-			paramValue++;
+			page++;
+			
 			try {
 				Thread.sleep(1000);
 			} catch (InterruptedException e) {
 				e.printStackTrace();
 			}
 		}
-		for (var item : result) {
-			System.out.println(item.getId());
-		}
 		return result;
 	}
 	
-	public ResponseEntity<History[]> getHistoryPage(int paramValue) {
-		String urlFull = new StringBuilder(url).append(urlUsers).append(getUserId()).append("/history")
-				.append('?').append("page").append('=').append(paramValue)
-				.append('&').append("limit").append('=').append(100)
-				.append('&').append("target_type").append('=').append("Anime")
+	public Object[] getPage(String urlString, int paramValue ) {
+		String urlFull = new StringBuilder(urlString)
+				.append('&').append("page").append('=').append(paramValue)
 				.toString();
-		System.out.println(paramValue);
-		return restTemplate.exchange(urlFull, HttpMethod.GET, entity(), History[].class);
+		return restTemplate.exchange(urlFull, HttpMethod.GET, entity(), Object[].class).getBody();
 	}
 }
