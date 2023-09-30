@@ -1,5 +1,7 @@
 package com.project.shikimori.dto.user;
 
+import java.util.Objects;
+
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.project.shikimori.dto.image.Image;
 
@@ -93,5 +95,21 @@ public class Target {
 	public void setReleasedOn(Object releasedOn) {
 		this.releasedOn = releasedOn;
 	}
+	@Override
+	public int hashCode() {
+		return Objects.hash(name);
+	}
+	@Override
+	public boolean equals(Object obj) {
+		if (this == obj)
+			return true;
+		if (obj == null)
+			return false;
+		if (getClass() != obj.getClass())
+			return false;
+		Target other = (Target) obj;
+		return Objects.equals(name, other.name);
+	}
+	
 	
 }

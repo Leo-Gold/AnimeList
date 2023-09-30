@@ -5,75 +5,130 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.select.Elements;
+import org.springframework.web.util.UriComponentsBuilder;
 
-import com.project.myAnimeList.dto.Anime;
-
+import com.project.constants.userRate.STATUS;
+import com.project.myAnimeList.dto.MAnime;
+import com.project.myAnimeList.dto.Url;
 
 public class MyAnimeListService {
-	 String nickname;
-	    String url = "https://myanimelist.net";
+	String nickname;
+	String url = "https://myanimelist.net/";
 
-	    public MyAnimeListService(String nickname) {
-	        this.nickname = nickname;
-	    }
+	public MyAnimeListService(String nickname) {
+		this.nickname = nickname;
+	}
 
-	    public List<Anime> getAnimeList() {
-	        List<Anime> anime = new ArrayList<>();
-	        int countTd = 8;
+	public HashMap<Long, MAnime> getAnimeList() {
+		HashMap<Long, MAnime> anime = new HashMap<>();
+		// countTd - all columns
+		int countTd = 0;
 
-	        for (int i = 1; i < 7; i++) {
-	            if (i == 5) {
-	                countTd = 6;
-	            }
-	            requestAnimeList("td1", anime, i, countTd);
-	            requestAnimeList("td2", anime, i, countTd);
-	        }
-	        return anime;
-	    }
+		// i - page MyAnimeList status
+		for (int i = 1; i <= 6; i++) {
+			// missing 5 page
+			if (i != 5) {
+				if (i < 5) {
+					countTd = 8;
+				} else if (i > 5) {
+					countTd = 6;
+				}
+				// j - style row, name class td1 or td2
+				for (int j = 1; j <= 2; j++) {
+					String td = "td".concat(Integer.toString(j));
+					anime.putAll(requestAnimeList(td, i, countTd));
+				}
+			}
 
-	    public void requestAnimeList(String td, List<Anime> anime, int pageStatus, int countTd) {
+		}
+		return anime;
+	}
 
-	        String animelist = "/animelist/";
-	        String headerName1 = "status";
-	        String headerName2 = "tag";
+	public HashMap<Long, MAnime> requestAnimeList(String td, int pageStatus, int countTd) {
+		HashMap<Long, MAnime> result = new HashMap<>();
+		String urlFull = UriComponentsBuilder.fromHttpUrl(url).path("animelist/").path(nickname)
+				.queryParam("status", pageStatus).queryParam("tag").toString();
 
-	        String urlFull = new StringBuilder(url).append(animelist).append(nickname)
-	        .append("?").append(headerName1).append("=").append(pageStatus)
-	        .append("&").append(headerName2).append("=")
-	        .toString();
+		try {
+			Document document = Jsoup.connect(urlFull).get();
 
-	        try {
-	            Document document = Jsoup.connect(urlFull).get();
+			String statusString = document.select("div.header_title").text();
+			STATUS status = null;
+			switch (statusString) {
+			case ("Watching"):
+				status = STATUS.watching;
+				break;
+			case ("Completed"):
+				status = STATUS.completed;
+				break;
+			case ("On-Hold"):
+				status = STATUS.onHold;
+				break;
+			case ("Dropped"):
+				status = STATUS.dropped;
+				break;
+			case ("Plan to Watch"):
+				status = STATUS.planned;
+				break;
+			}
+			Elements elementsTd = document.getElementsByClass(td);
 
-	            String status = document.select("div.header_title").text();
-	            Elements elementsTd1 = document.getElementsByClass(td);
+			for (int i = 0; i < elementsTd.size(); i += countTd) {
+				String title = elementsTd.get(i + 1).getElementsByClass("animetitle").text();
 
-	            for (int i = 0; i < elementsTd1.size(); i += countTd) {
-	                String title = elementsTd1.get(i + 1).getElementsByClass("animetitle").text();
-	                String urlAnime = elementsTd1.get(i + 1).getElementsByClass("animetitle").attr("href");
-	                long id = Long.parseLong(urlAnime.split("/")[2]);
-	                String score = elementsTd1.get(i + 2).getElementsByTag("span").text();
-	                int currentEpisode = Integer.parseInt(elementsTd1.get(i + 4).text().split("/")[0]);
-	                int episodes  = Integer.parseInt(elementsTd1.get(i + 4).text().split("/")[1]);
-	                Date dateStart = null, dateEnd = null;
+				String urlAnime = elementsTd.get(i + 1).getElementsByClass("animetitle").attr("href");
 
-	                if (pageStatus != 6) {
-	                    try {
-	                        dateStart = new SimpleDateFormat("dd-MM-yy").parse(elementsTd1.get(i + 6).text());
-	                        dateEnd = new SimpleDateFormat("dd-MM-yy").parse(elementsTd1.get(i + 7).text());
-	                    } catch (ParseException e) {
-	                        e.printStackTrace();
-	                    }
-	                }
-	                anime.add(new Anime(id, status, url.concat(urlAnime), title, score, currentEpisode, episodes, dateStart, dateEnd));
-	            }
-	        } catch (IOException e) {
-	            e.printStackTrace();
-	        }
-	    }
+				long id = Long.parseLong(urlAnime.split("/")[2]);
+
+				String scoreString = elementsTd.get(i + 2).getElementsByTag("span").text();
+				int score = 0;
+				if (!scoreString.equals("-")) {
+					score = Integer.parseInt(scoreString);
+				}
+
+				String progress = elementsTd.get(i + 4).text();
+				Integer currentEpisode = null, episodes = null;
+				if (progress.contains("/")) {
+					String currentEpisodeString = progress.split("/")[0];
+
+					if (!currentEpisodeString.equals("-")) {
+						currentEpisode = Integer.parseInt(currentEpisodeString);
+					}
+					String episodesString = progress.split("/")[1];
+
+					if (!episodesString.equals("-")) {
+						episodes = Integer.parseInt(episodesString);
+					}
+
+				} else {
+					episodes = Integer.parseInt(progress);
+					currentEpisode = episodes;
+				}
+
+				Date dateStart = null, dateEnd = null;
+
+				if (pageStatus < 5) {
+					try {
+						dateStart = new SimpleDateFormat("dd-MM-yy").parse(elementsTd.get(i + 6).text());
+						dateEnd = new SimpleDateFormat("dd-MM-yy").parse(elementsTd.get(i + 7).text());
+					} catch (ParseException e) {
+						e.printStackTrace();
+					}
+				}
+				Url urlMal = new Url();
+				urlMal.setUrlMal(url.concat(urlAnime));
+
+				result.put((Long) id, new MAnime(id, status, urlMal, title, score, currentEpisode, episodes, dateStart, dateEnd));
+			}
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		return result;
+	}
 }

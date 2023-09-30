@@ -1,14 +1,16 @@
 package com.project.shikimori.dto.user;
 
 import java.time.Instant;
+import java.util.Objects;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.project.constants.userRate.STATUS;
 import com.project.shikimori.dto.anime.Anime;
 
 public class AnimeRate {
 	int id;
     int score;
-    String status;
+    STATUS status;
     String text;
     int episodes;
     Integer chapters;
@@ -37,10 +39,10 @@ public class AnimeRate {
 	public void setScore(int score) {
 		this.score = score;
 	}
-	public String getStatus() {
+	public STATUS getStatus() {
 		return status;
 	}
-	public void setStatus(String status) {
+	public void setStatus(STATUS status) {
 		this.status = status;
 	}
 	public String getText() {
@@ -109,5 +111,4 @@ public class AnimeRate {
 	public void setManga(Object manga) {
 		this.manga = manga;
 	}
-	
 }

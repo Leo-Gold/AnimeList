@@ -2,129 +2,155 @@ package com.project.shikimori;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
+import java.util.Collections;
+import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.UriComponentsBuilder;
 
+import com.project.constants.userRate.STATUS;
+import com.project.myAnimeList.dto.MAnime;
+import com.project.myAnimeList.dto.Url;
+import com.project.shikimori.dto.user.User;
 import com.project.shikimori.dto.anime.Anime;
 import com.project.shikimori.dto.user.AnimeRate;
 import com.project.shikimori.dto.user.History;
-import com.project.shikimori.dto.user.User;
 
 public class ShikimoriService {
-	private String url = "https://shikimori.me/";
-	private String urlUsers = "api/users/";
-	private String nickname;
-	private RestTemplate restTemplate = new RestTemplate();
+	private String nickname, url = "https://shikimori.one";
 
 	public ShikimoriService(String nickname) {
 		this.nickname = nickname;
 	}
 
 	private HttpEntity<String> entity() {
-		String key = "User-Agent";
-		String value = "Api Test";
+		;
 		HttpHeaders headers = new HttpHeaders();
-		headers.add(key, value);
+		headers.add("User-Agent", "Api Test");
 		HttpEntity<String> entity = new HttpEntity<>(headers);
 		return entity;
 	}
 
+	public void timeout() {
+		try {
+			Thread.sleep(1000);
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+		}
+
+	}
+
 	public int getUserId() {
-		String urlFull = new StringBuilder(url).append(urlUsers).append(nickname).append("/info").toString();
-		User user = restTemplate.exchange(urlFull, HttpMethod.GET, entity(), User.class).getBody();
+		String urlFull = UriComponentsBuilder.fromHttpUrl(url).path("/api/users/{nickname}/info").build(this.nickname)
+				.toString();
+		User user = new RestTemplate().exchange(urlFull, HttpMethod.GET, entity(), User.class).getBody();
+		timeout();
 		return user.getId();
 	}
 
-	public List<AnimeRate> getUserAnimeRate() {
+	public HashMap<String, MAnime> getUserAnimeRate() {
 
-		ArrayList<AnimeRate> result = new ArrayList<>();
-
+		HashMap<String, MAnime> result = new HashMap<>();
+		List<AnimeRate> tempAnimeRateList = new ArrayList<>();
 		int page = 1;
-		String urlFull = new StringBuilder(url).append(urlUsers).append(getUserId()).append("/anime_rates/")
-				.append("?").append("limit").append("=").append(5000 )
-				.toString();
 
-		AnimeRate[] animeRate = (AnimeRate[]) getPage(urlFull, page);
-		
-		while (animeRate.length > 0 && page <= 100000) {
-			if (page == 1) {
-				if (result.size() > animeRate.length - 1) {
-					result = new ArrayList<>();
-				}
-			} else {
-				animeRate = (AnimeRate[]) getPage(urlFull, page);
-			}
-			result.addAll(Arrays.asList(animeRate));
+		AnimeRate[] animeArr = getPageAnimeRateNext(page);
+
+		while (animeArr != null) {
+			animeArr = getPageAnimeRateNext(page);
+			List<AnimeRate> animeList = Arrays.asList(animeArr);
+			tempAnimeRateList.addAll(animeList);
 			page++;
-			try {
-				Thread.sleep(1000);
-			} catch (InterruptedException e) {
-				e.printStackTrace();
-			}
 		}
+
+		for (AnimeRate anime : tempAnimeRateList) {
+			int animeId = anime.getAnime().getId();
+			String urlFull = UriComponentsBuilder.fromHttpUrl(url).path("/api/animes/{animeId}").build(animeId)
+					.toString();
+			Anime getAnime = new RestTemplate().exchange(urlFull, HttpMethod.GET, entity(), Anime.class).getBody();
+			long myanimelistId = getAnime.getMyanimelistId();
+			STATUS status = anime.getStatus();
+			Url url = new Url();
+			url.setUrlShiki(getAnime.getUrl());
+			String title = getAnime.getName();
+			int score = anime.getScore();
+			Integer currentEpisode = null;
+			Integer episodes = getAnime.getEpisodes();
+			Date startDate = null;
+			Date endDate = null;
+			MAnime manime = new MAnime(myanimelistId, status, url, title, score, currentEpisode, episodes, startDate,
+					endDate);
+			result.put(title, manime);
+		}
+
 		return result;
 	}
 
-	public List<AnimeRate> addInfoAnimeForUserRate() {
-
-		List<AnimeRate> getAnimeRates = getUserAnimeRate();
-
-		for (AnimeRate rateAnime : getAnimeRates) {
-			String urlFull = new StringBuilder(url).append("api/animes/").append(rateAnime.getAnime().getId()).toString();
-
-			Anime anime = restTemplate.exchange(urlFull, HttpMethod.GET, entity(), Anime.class).getBody();
-			rateAnime.setAnime(anime);
-			
-			try {
-				Thread.sleep(1000);
-			} catch (InterruptedException e) {
-				e.printStackTrace();
-			}
-
-		}
-		return getAnimeRates;
+	public AnimeRate[] getPageAnimeRateNext(int page) {
+		String urlFull = UriComponentsBuilder.fromHttpUrl(url).path("/api/users/{userId}/anime_rates/")
+				.queryParam("limit", 1000).queryParam("page", page).queryParam("target_type", "Anime")
+				.build(getUserId()).toString();
+		AnimeRate[] result = new RestTemplate().exchange(urlFull, HttpMethod.GET, entity(), AnimeRate[].class)
+				.getBody();
+		timeout();
+		return result;
 	}
 
-	public ArrayList<History> getAnimeHistory() {
-		ArrayList<History> result = new ArrayList<>();
-
+	public List<History> getUserAnimeHistory() {
+		List<History> result = new ArrayList<>();
 		int page = 1;
-		String urlFull = new StringBuilder(url).append(urlUsers).append(getUserId()).append("/history")
-				.append('?').append("target_type").append('=').append("Anime")
-				.append('&').append("limit").append('=').append(100)
-				.toString();
-
-		History[] history = (History[]) getPage(urlFull, page);
-		while (history.length > 0 && page <= 100000) {
-			if (page == 1) {
-				if (result.size() > history.length - 1) {
-					result = new ArrayList<>();
-				}
-			} else {
-				history = (History[])  getPage(urlFull, page);
-			}
-			result.addAll(Arrays.asList(history));
+		History[] historyArr = getPageAnimeHistoryNext(page);
+		while (historyArr.length > 0) {
+			historyArr = getPageAnimeHistoryNext(page);
+			result.addAll(Arrays.asList(historyArr));
 			page++;
+		}
+		Collections.reverse(result);
+		return result;
+	}
+
+	public History[] getPageAnimeHistoryNext(int page) {
+		String urlFull = UriComponentsBuilder.fromHttpUrl(url).path("/api/users/{userId}/history")
+				.queryParam("limit", 100).queryParam("page", page).queryParam("target_type", "Anime").build(getUserId())
+				.toString();
+		History[] result = new RestTemplate().exchange(urlFull, HttpMethod.GET, entity(), History[].class).getBody();
+		timeout();
+		return result;
+	}
+
+	public List<MAnime> getAnimeShikiUser() {
+		HashMap<String, MAnime> result = getUserAnimeRate();
+		for (History history : getUserAnimeHistory()) {
 			
-			try {
-				Thread.sleep(1000);
-			} catch (InterruptedException e) {
-				e.printStackTrace();
+			MAnime anime = result.get(history.getTarget().getName());
+			String description = history.getDescription();
+			if (anime.getStatus().equals(STATUS.rewatching)) {
+				anime.setStatus(STATUS.watching);
+			}
+			if (anime.getCurrentEpisode() + 1 == anime.getEpisodes() && description.contains("Просмотрено")
+					&& !description.contains("эпизодов") && anime.getEndDate() == null) {
+				anime.setStatus(STATUS.completed);
+				anime.setEndDate(Date.from(history.getCreatedAt()));
+			} else if (description.contains("Просмотрен") && !description.contains("оценено")
+					&& pullEpisodes(description) > anime.getCurrentEpisode() && !description.equals("Просмотрено")){
+				anime.setCurrentEpisode(pullEpisodes(description));
+			} else if (description.equals("Смотрю")) {
+				anime.setStartDate(Date.from(history.getCreatedAt()));
 			}
 		}
-		return result;
+		return result.values().stream().collect(Collectors.toList());
 	}
 	
-	public Object[] getPage(String urlString, int paramValue ) {
-		String urlFull = new StringBuilder(urlString)
-				.append('&').append("page").append('=').append(paramValue)
-				.toString();
-		return restTemplate.exchange(urlFull, HttpMethod.GET, entity(), Object[].class).getBody();
+	public int pullEpisodes(String description) {
+		String[] episodeString = description.split("\\D+");
+		int index = episodeString.length - 1;
+		int episode = Integer.parseInt(episodeString[index]);
+		return episode;
 	}
 }

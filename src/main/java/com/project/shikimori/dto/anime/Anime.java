@@ -1,17 +1,21 @@
 package com.project.shikimori.dto.anime;
 
 import java.time.Instant;
+import java.util.Objects;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.project.constants.anime.KIND;
+import com.project.constants.anime.STATUS;
 import com.project.shikimori.dto.image.Image;
 
 public class Anime {
 	    int id;
 	    String name, russian;
 	    Image image;
-	    String url, kind;
+	    String url;
+	    KIND kind;
 	    float score;
-	    String status;
+	    STATUS status;
 	    int episodes;
 	    @JsonProperty("episodes_aired")
 	    int episodesAired;
@@ -90,10 +94,10 @@ public class Anime {
 		public void setUrl(String url) {
 			this.url = url;
 		}
-		public String getKind() {
+		public KIND getKind() {
 			return kind;
 		}
-		public void setKind(String kind) {
+		public void setKind(KIND kind) {
 			this.kind = kind;
 		}
 		public float getScore() {
@@ -102,10 +106,10 @@ public class Anime {
 		public void setScore(float score) {
 			this.score = score;
 		}
-		public String getStatus() {
+		public STATUS getStatus() {
 			return status;
 		}
-		public void setStatus(String status) {
+		public void setStatus(STATUS status) {
 			this.status = status;
 		}
 		public int getEpisodes() {
@@ -300,5 +304,4 @@ public class Anime {
 		public void setUserRate(String userRate) {
 			this.userRate = userRate;
 		}
-	    
 }
